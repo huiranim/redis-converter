@@ -52,10 +52,10 @@ public class RedisConverter {
                             }
 
                             Map<String, String> map = mapper.readValue(value, Map.class);
-//                            jedisCluster.hset(key, map);
+                            jedisCluster.hset(key, map);
 
                             convertedCount++;
-                            System.out.println("[" + convertedCount + "] Converted to Hash: " + key + " / " + map);
+//                            System.out.println("[" + convertedCount + "] Converted to Hash: " + key + " / " + map);
                         } catch (Exception e) {
                             System.err.println("Failed to convert key: " + key + " → " + e.getMessage());
                         }
