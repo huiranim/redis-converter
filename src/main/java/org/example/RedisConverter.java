@@ -1,6 +1,7 @@
 package org.example;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -45,22 +46,28 @@ public class RedisConverter {
 
                     for (String key : keys) {
                         try {
-                            String value = jedisCluster.get(key);
-                            if (value == null || !isJsonObject(value, mapper)) {
-                                System.out.println("Value is null or is not JsonObject");
-                                continue;
+                            String type = jedisCluster.type(key);
+                            if ("string".equals(type)) {
+                                String value = jedisCluster.get(key);
+                                if (value != null && isJsonObject(value, mapper)) {
+                                    Map<String, String> map = mapper.readValue(value, new TypeReference<Map<String, String>>() {});
+
+                                    jedisCluster.set(key + ":backup", value);   // 기존 string백업
+                                    jedisCluster.del(key);                      // 기존 string 제거
+                                    jedisCluster.hset(key, map);                // hash 저장
+
+                                    convertedCount++;
+//                                    System.out.println("[" + convertedCount + "] Converted to Hash: " + key + " / " + map);
+                                } else {
+                                    System.out.println("Value is null or is not JsonObject(key: " + key + ")");
+                                }
+                            } else {
+                                System.out.println("Value is not String(key: " + key + ")");
                             }
-
-                            Map<String, String> map = mapper.readValue(value, Map.class);
-                            jedisCluster.hset(key, map);
-
-                            convertedCount++;
-//                            System.out.println("[" + convertedCount + "] Converted to Hash: " + key + " / " + map);
                         } catch (Exception e) {
                             System.err.println("Failed to convert key: " + key + " → " + e.getMessage());
                         }
                     }
-
                     cursor = scanResult.getCursor();
                 } while (!cursor.equals(ScanParams.SCAN_POINTER_START));
 
@@ -68,7 +75,6 @@ public class RedisConverter {
                 System.err.println("노드 연결 실패: " + node + " → " + e.getMessage());
             }
         }
-
         System.out.println("모든 JSON 문자열을 Redis Hash로 변환 완료");
     }
 
